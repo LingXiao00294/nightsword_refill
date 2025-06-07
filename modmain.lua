@@ -15,10 +15,10 @@ end
 
 	--Import Scripts/导入脚本
 
-modimport("scripts/nightequipment_import")
-	--No Consumption/装备无消耗
+modimport("scripts/nightequipment_import")	--No Consumption/装备无消耗
 
-if maximum_use == 999 then	AddComponentPostInit("finiteuses", function(Finiteuses, inst)
+if maximum_use == 999 then
+	AddComponentPostInit("finiteuses", function(Finiteuses, inst)
 		Finiteuses.oldUseFn_consumption_on = Finiteuses.Use
 		function Finiteuses:Use(num)
 			if self.inst:HasTag("no_nightsword_consumption") then
@@ -28,9 +28,12 @@ if maximum_use == 999 then	AddComponentPostInit("finiteuses", function(Finiteuse
 			end
 		end
 	end)
-end	--Zero Durability Related/零耐久相关
+end
 
-if wont_break then	AddComponentPostInit("finiteuses", function(FiniteUses, inst)
+	--Zero Durability Related/零耐久相关
+
+if wont_break then
+	AddComponentPostInit("finiteuses", function(FiniteUses, inst)
 		FiniteUses.oldSetUsesFn_nightsword_fix = FiniteUses.SetUses
 		function FiniteUses:SetUses(val)
 			if self.inst:HasTag("nightsword_durability_fix") then
