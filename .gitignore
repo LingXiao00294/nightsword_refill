@@ -1,0 +1,24 @@
+# Don't Starve Together Mod - gitignore
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Editor files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Log files
+*.log
+
+# Build artifacts (if any)
+dist/
+build/

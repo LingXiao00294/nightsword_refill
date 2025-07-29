@@ -37,7 +37,8 @@ configuration_options =
 	{
 		name = "refill_rate",
         label = "Refill Rate/充能值",
-		hover = "The percentage of durability that can be increased by each nightmare fuel".."\n每一份噩梦燃料可以增加的耐久度百分比",        options =
+		hover = "The percentage of durability that can be increased by each nightmare fuel".."\n每一份噩梦燃料可以增加的耐久度百分比",
+        options =
         {
 			{description = "No Refill/不充能", 		data = 0,		hover = "Night Sword can not be refilled/暗夜剑不可被充能"},
             {description = "10%", 					data = 0.10,	hover = "Increase by 10%/增加10%"},
@@ -46,7 +47,8 @@ configuration_options =
             {description = "50%", 					data = 0.50,	hover = "Increase by 50%/增加50%"},
         },
         default = 0.20,
-	},    {
+	},
+    {
         name = "wont_break",
         label = "Equipment Retention/装备保留",
 		hover = "Whether to keep the Night Sword when its durability is exhausted".."\n是否在暗夜剑耐久度耗尽时保留装备",
@@ -56,7 +58,8 @@ configuration_options =
             {description = "No/否", 	data = false, 	hover = "Remove the Night Sword/移除暗夜剑"},
         },
         default = true,
-    },    {
+    },
+    {
         name = "maximum_use",
         label = "Maximum Durability/最大耐久度",
 		hover = "The maximum durability of the Night Sword".."\n暗夜剑的耐久度上限",
