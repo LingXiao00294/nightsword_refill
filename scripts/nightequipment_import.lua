@@ -10,7 +10,7 @@ local wont_break = GetModConfigData("wont_break")
 	--Only Remove the Function for Night Sword/只有暗夜剑功能被移除
 	
 local function nightsword_break(inst)
-	local owner = inst.components.inventoryitem.owner
+	local owner = inst.components.inventoryitem ~= nil and inst.components.inventoryitem.owner or nil
 	if owner ~= nil and inst.components.equippable ~= nil and inst.components.equippable:IsEquipped() then
 		if owner.components.talker ~= nil then
 			if is_english then
@@ -36,71 +36,58 @@ end
 	--Refill for Night Sword/暗夜剑充能
 	
 local function accept_test_nightsword(inst, item)
-	return item ~= nil and item.prefab == "nightmarefuel"
+	if item ~= nil and item.prefab == "nightmarefuel" then
+		-- Only accept nightmare fuel if durability is not full
+		if inst.components.finiteuses ~= nil then
+			local current_percent = inst.components.finiteuses:GetPercent()
+			return current_percent < 0.999
+		end
+	end
+	return false
 end
 
 local function on_accept_nightsword(inst, giver, item)
 	if item ~= nil and item.prefab == "nightmarefuel" then
 		if inst.components.finiteuses ~= nil then
 			local current_percent = inst.components.finiteuses:GetPercent()
-			if current_percent >= 1 then
-				if giver.components.talker ~= nil then
+			
+			giver.SoundEmitter:PlaySound("dontstarve/common/nightmareAddFuel")
+			
+			-- Calculate new durability
+			current_percent = current_percent + refill_rate
+			if current_percent >= 0.999 then
+				current_percent = 1
+			end
+			
+			-- Set new durability
+			inst.components.finiteuses:SetPercent(current_percent)
+			
+			-- Feedback to player
+			if giver.components.talker ~= nil then
+				if current_percent >= 1 then
 					if is_english then
-						giver.components.talker:Say("Night Sword durability is full already.")
+						giver.components.talker:Say("Night Sword fully repaired.")
 					else
-						giver.components.talker:Say("暗夜剑耐久度已满。")
+						giver.components.talker:Say("暗夜剑完全修复。")
 					end
-				end
-				-- Return the nightmare fuel if durability is already full
-				inst:DoTaskInTime(0.1, function()
-					local giveBack = SpawnPrefab(item.prefab)
-					local pitPos = Vector3(inst.Transform:GetWorldPosition())
-					local pt = pitPos + Vector3(0, 1, 0)
-					giveBack.Transform:SetPosition(pt:Get())
-					local angle = (math.random() * 360) * DEGREES
-					local sp = 3 + math.random()
-					giveBack.Physics:SetVel(sp * math.cos(angle), math.random() * 2 + 4, sp * math.sin(angle))
-					giver.SoundEmitter:PlaySound("dontstarve/pig/PigKingThrowGold")
-				end)
-			else
-				giver.SoundEmitter:PlaySound("dontstarve/common/nightmareAddFuel")
-				
-				-- Calculate new durability
-				current_percent = current_percent + refill_rate
-				if current_percent >= 0.999 then
-					current_percent = 1
-				end
-				
-				-- Set new durability
-				inst.components.finiteuses:SetPercent(current_percent)
-				
-				-- Feedback to player
-				if giver.components.talker ~= nil then
-					if current_percent >= 1 then
-						if is_english then
-							giver.components.talker:Say("Night Sword fully repaired.")
-						else
-							giver.components.talker:Say("暗夜剑完全修复。")
-						end
+				else
+					if is_english then
+						giver.components.talker:Say("Night Sword durability restored: "..(refill_rate * 100).."%.")
 					else
-						if is_english then
-							giver.components.talker:Say("Night Sword durability restored: "..(refill_rate * 100).."%.")
-						else
-							giver.components.talker:Say("暗夜剑耐久度恢复："..(refill_rate * 100).."%。")
-						end
+						giver.components.talker:Say("暗夜剑耐久度恢复："..(refill_rate * 100).."%。")
 					end
-				end				-- Restore functionality if durability was 0
-				if inst:HasTag("nightsword_durability_exhausted") then
-					-- Restore weapon damage (Night Sword does 68 damage by default)
-					if inst.components.weapon ~= nil then
-						inst.components.weapon:SetDamage(68)
-					end
-					-- Restore sanity drain
-					if inst.components.equippable ~= nil then
-						inst.components.equippable.dapperness = -TUNING.DAPPERNESS_MED
-					end
-					inst:RemoveTag("nightsword_durability_exhausted")
 				end
+			end				-- Restore functionality if durability was 0
+			if inst:HasTag("nightsword_durability_exhausted") then
+				-- Restore weapon damage (Night Sword does 68 damage by default)
+				if inst.components.weapon ~= nil then
+					inst.components.weapon:SetDamage(68)
+				end
+				-- Restore sanity drain
+				if inst.components.equippable ~= nil then
+					inst.components.equippable.dapperness = -TUNING.DAPPERNESS_MED
+				end
+				inst:RemoveTag("nightsword_durability_exhausted")
 			end
 		end
 	end
