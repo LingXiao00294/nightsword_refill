@@ -1,49 +1,66 @@
-# Refillable Night Equipment Mod
+# Refillable Night Sword
 
-## 功能说明 / Features
+饥荒联机版暗夜剑充能模组。保持暗夜剑按攻击次数消耗耐久的用途，使用噩梦燃料恢复耐久，并提供耐久倍率、无限耐久和耗尽保留选项。
 
-### 中文说明
+## 使用方法
 
-- **暗夜装备可充能**: 暗夜剑可以使用噩梦燃料进行充能
-- **充能比例**: 每份噩梦燃料默认恢复20%的耐久度
-- **耐久度保留**: 可选择在耐久度耗尽时保留暗夜装备而不是销毁
-- **功能管理**: 当耐久度不足时，暗夜装备将失去相应效果（攻击力和理智消耗效果）
+1. 拿起噩梦燃料，右键需要修复的暗夜剑，操作与原版橙色护符（懒人护符 / Lazy Forager）相同。
+2. 使用原版“修复”动作及短动作动画；背包、装备栏和地面物品沿用原版的目标判定。
+3. 每次消耗一份噩梦燃料，默认恢复最大耐久的 20%，最多恢复到 100%。满耐久时不提供修复动作，也不会消耗燃料。
+4. 默认保留耐久耗尽的暗夜剑，此时武器伤害和装备理智消耗为零；补充耐久后恢复耗尽前的属性。
 
-### English Description
+本模组只修改暗夜剑，不扩展到其他暗夜装备。需要服务端和所有客户端安装。
 
-- **Refillable Night Equipment**: Night Sword can be refilled using nightmare fuel
-- **Refill Rate**: Each nightmare fuel restores 20% durability by default
-- **Durability Retention**: Option to keep the Night Equipment when durability is exhausted instead of destroying it
-- **Function Management**: When durability is low, Night Equipment loses its respective effects (damage and sanity drain effects)
+## 配置
 
-## 配置选项 / Configuration Options
+| 配置 | 可选值 | 默认值 |
+| --- | --- | --- |
+| Language / 语言 | 中文、English；控制修复和耗尽提示 | 中文 |
+| Refill Rate / 充能值 | 禁用、10%、20%、30%、50% | 20% |
+| Equipment Retention / 装备保留 | 耗尽时保留或销毁 | 保留 |
+| Maximum Durability / 最大耐久度 | 原版、200%、500%、无限 | 原版 |
 
-1. **Language/语言**: 选择角色说话的语言 / Choose character speech language
-2. **Refill Rate/充能值**: 设置噩梦燃料的充能效果 / Set nightmare fuel refill effectiveness
-3. **Equipment Retention/装备保留**: 选择是否在耐久度耗尽时保留暗夜剑 / Choose whether to keep Night Sword when durability is exhausted
-4. **Maximum Durability/最大耐久度**: 设置暗夜剑的最大耐久度 / Set maximum durability of Night Sword
+充能比例按配置后的最大耐久计算，例如 200 次耐久、20% 充能时，每份恢复 40 次。无限耐久使用原版“不消耗战斗耐久”设置，正常攻击不会损耗；旧存档中受损的剑仍可修复。禁用充能后不再提供修复动作；同时开启装备保留时，耗尽的剑会留下，但无法用本模组修复。
 
-## 使用方法 / How to Use
+## 实现与存档
 
-1. 手持噩梦燃料右键暗夜剑进行修复 / Hold the Nightmare Fuel with the right-click on the Dark Night Sword.
-2. 每份噩梦燃料会根据配置恢复相应的耐久度 / Each nightmare fuel restores durability according to configuration
-3. 当耐久度满时，噩梦燃料会被退还 / Nightmare fuel is returned when durability is full
+- 采用原版橙色护符的 `repairable`、`MATERIALS.NIGHTMARE`、`repairshortaction` 和 `ACTIONS.REPAIR` 流程。噩梦燃料本身已有 `repairer` 组件，无需添加交易组件或修改燃料。
+- 保留原版 `finiteuses` 作为唯一耐久数据源。只在暗夜剑实例上适配每次修复的耐久量，燃料校验、单份堆叠消耗及满耐久拒绝由原版组件处理。
+- 保留原版 `usesdepleted` 标签和 `SetUses` 行为；不修改全局组件方法或 `TUNING`，不注册额外动作，不使用定时燃烧机制。
+- 耗尽后保存并恢复实际武器伤害和理智属性，不写死为 68 或固定理智值。仍有正数耐久时保留武器效果。
+- 音效按原版护符区分地面、装备及容器，并通过网络事件通知查看容器的客户端。
+- 继续读取原有 `finiteuses` 存档，包括零耐久装备，无需转换存档。修改耐久倍率后，已有受损装备沿用原版保存的剩余使用次数。
 
-## 技术实现 / Technical Implementation
+同时修改暗夜剑组件、伤害或修复行为的其他模组可能受加载顺序影响，不能保证全部兼容。
 
-这个mod参考了原版法杖和护身符的可充能mod设计，主要技术要点包括：
+## 上传创意工坊
 
-1. **交易系统**: 通过添加trader组件实现噩梦燃料与暗夜剑的交易
-2. **耐久度管理**: 使用finiteuses组件管理耐久度的变化
-3. **功能控制**: 通过监听耐久度变化事件来控制武器功能的启用/禁用
-4. **PostInit钩子**: 使用AddPrefabPostInit在游戏加载后修改暗夜剑的属性
+上传工具的 **Update Data** 选择仓库下的 `publish/`，其中仅包含 `modinfo.lua`、`modmain.lua`、`mod.manifest` 和 `scripts/nightsword_refill.lua`。发布目录已加入 Git 忽略规则；源码更新后需重新复制这些文件再上传。
 
-## 兼容性 / Compatibility
+当前模组未启用自定义图标，不需要上传 `modicon.xml`。创意工坊封面在仓库根目录：`preview.jpg` 为上传版本，`preview.png` 为生成原图。勾选 **Update Preview Image** 并选择 `preview.jpg` 即可更新封面；封面由工具单独上传，不放入 `publish/`。不更换封面时取消该选项。生成提示词见 `preview.prompt.md`。
 
-- 适用于饥荒联机版 (Don't Starve Together)
-- 需要所有客户端安装此mod
-- 兼容大部分其他mod
+## 验证
 
-## 版本历史 / Version History
+自动测试需要 Lua 5.1 和本机饥荒联机版的 `data/databundles/scripts.zip`，从仓库根目录运行：
 
-- v1.0.0: 初始版本，实现基本的暗夜剑充能功能
+```powershell
+.\tests\run.ps1 -GameScripts 'D:\SteamLibrary\steamapps\common\Don''t Starve Together\data\databundles\scripts.zip' -Lua 'lua'
+```
+
+也可将 `-Lua` 指定为 Lua 5.1 可执行文件的完整路径。测试从本机游戏读取真实的 `finiteuses`、`repairable`、`repairer`、修复动作和战斗损耗代码，临时提取后运行，不修改游戏文件，也不分发游戏源码。
+
+覆盖各档充能比例与耐久倍率、满耐久拒绝、错误材料、堆叠消耗、耗尽与恢复、旧存档加载、无限耐久、禁用选项、其他装备隔离、客户端初始化和音效分支。引擎实体与网络使用替身，实际联机交互仍需进游戏验收：
+
+- 房主和远程客户端分别修复背包、装备栏、地面及容器中的暗夜剑，检查动作、动画、耐久显示与音效。
+- 连续修复至满耐久，确认每次只少一份燃料，满耐久无法继续消耗。
+- 将剑用至耗尽，保存重进后修复，确认伤害和理智消耗恢复。
+- 分别检查关闭保留、关闭充能及无限耐久配置，并确认原版橙色护符不受影响。
+
+## English
+
+Repair the Night Sword with Nightmare Fuel using the same native repair interaction as the Lazy Forager. Each fuel restores a configurable percentage of maximum durability (20% by default). Full swords reject repairs without consuming fuel. Optional durability retention keeps an exhausted sword with zero weapon damage and no equipment sanity drain; repairing restores its previous attributes. Durability multipliers and infinite combat durability remain configurable. All clients require the mod.
+
+## 版本历史
+
+- **1.2.0**：改用原版橙色护符修复流程；移除全局组件补丁；修正属性恢复、低耐久及零耐久读档处理；加入原版组件回归测试。
+- **1.1.0**：原有噩梦燃料交易充能、耐久配置与耗尽保留实现。
