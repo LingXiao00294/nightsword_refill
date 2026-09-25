@@ -22,3 +22,4 @@ Thumbs.db
 # Build artifacts (if any)
 dist/
 build/
+/publish/

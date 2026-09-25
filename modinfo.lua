@@ -1,15 +1,15 @@
 name = "Refillable Night Sword"
 description = 
 [[
-- Night Sword can be refilled with nightmare fuel.
-  暗夜剑可以使用噩梦燃料充能。
+- Night Sword can be repaired with nightmare fuel, like the Lazy Forager.
+  暗夜剑可以像原版橙色护符一样使用噩梦燃料修复。
 - Each nightmare fuel restores 20% of the equipment's durability.
   每份噩梦燃料恢复装备20%的耐久度。
 - Night Sword can be retained when durability is exhausted.
   暗夜剑在耐久度耗尽时可以被保留。
 ]]
 author = "ModCreator"
-version = "1.1.0"
+version = "1.2.0"
 
 forumthread = ""
 api_version = 10
