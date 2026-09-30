@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$GameScripts,
-    [string]$Lua = 'lua'
+    [string]$Lua = 'lua',
+    [string]$InsightScripts
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +22,11 @@ try {
     }
     Push-Location (Split-Path $PSScriptRoot)
     try {
-        & $Lua 'tests/nightsword_spec.lua' $fixturePath
+        $testArgs = @('tests/nightsword_spec.lua', $fixturePath)
+        if ($InsightScripts) {
+            $testArgs += (Resolve-Path -LiteralPath $InsightScripts).Path
+        }
+        & $Lua @testArgs
         if ($LASTEXITCODE -ne 0) { throw "Lua tests failed with exit code $LASTEXITCODE" }
     } finally {
         Pop-Location
