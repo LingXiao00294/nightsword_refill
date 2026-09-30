@@ -10,8 +10,9 @@ New-Item -ItemType Directory -Path $fixturePath | Out-Null
 $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $GameScripts).Path)
 try {
     # Read the installed game's implementation; no game files are modified or bundled.
-    foreach ($name in @('class.lua', 'components/finiteuses.lua', 'components/repairable.lua',
-        'components/repairer.lua', 'components/weapon.lua', 'actions.lua', 'componentactions.lua')) {
+    foreach ($name in @('class.lua', 'util/sourcemodifierlist.lua', 'components/armor.lua',
+        'components/finiteuses.lua', 'components/repairable.lua', 'components/repairer.lua',
+        'components/weapon.lua', 'actions.lua', 'componentactions.lua')) {
         $entry = $archive.GetEntry('scripts/' + $name)
         if ($null -eq $entry) { throw "Missing game script: $name" }
         $destination = Join-Path $fixturePath $name

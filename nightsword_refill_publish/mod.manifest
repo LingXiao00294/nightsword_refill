@@ -1,0 +1,5 @@
+return {
+  version = 1,
+  luaversion = 2,
+  returnstatements = true,
+}
