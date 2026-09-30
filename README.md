@@ -16,15 +16,18 @@
 | 配置 | 可选值 | 默认值 |
 | --- | --- | --- |
 | Language / 语言 | 不播报、中文、English；控制修复和耗尽提示 | 不播报 |
-| Refill Rate / 充能值 | 禁用、10%、20%、30%、50% | 20% |
+| Night Sword Refill Rate / 暗夜剑充能值 | 10%、20%、25%、33.3%、50%、100% | 20% |
+| Night Armor Refill Rate / 暗夜甲充能值 | 10%、20%、25%、33.3%、50%、100% | 20% |
 | Equipment Retention / 装备保留 | 耗尽时保留或销毁 | 保留 |
 | Maximum Durability / 最大耐久度 | 原版、200%、500%、无限 | 原版 |
 
 默认不显示角色的修复和耐久耗尽台词，修复音效仍正常播放。选择中文或 English 可启用对应语言的播报。已有存档若保存了中文或 English 配置，会继续使用原有选择；需手动改为“不播报”。
 
+剑和甲的充能比例独立设置，最大耐久倍率和耗尽保留选项仍共用。旧版 `refill_rate` 配置继续用于暗夜剑：10%、20%、50% 保留，已移除的 30% 和禁用充能回退为默认 20%；暗夜甲新增 `armor_refill_rate` 配置，默认 20%。33.3% 按 0.333 计算，100% 档消耗一份燃料即可修至满耐久。
+
 安装 Insight（显示详细信息）时，手持噩梦燃料查看暗夜剑或暗夜甲，修复提示会按当前充能比例和装备最大耐久计算。接近满耐久时显示实际还能恢复的量；满耐久或材料不符时不显示修复量。“不播报”只控制角色台词，详情提示使用 Insight 的语言设置。
 
-充能比例按各自配置后的最大耐久计算，例如暗夜剑 200 次耐久、20% 充能时，每份恢复 40 次；暗夜甲原版 525 点耐久时，每份恢复 105 点。无限耐久下，暗夜剑使用原版“不消耗战斗耐久”设置，暗夜甲使用自身的零损耗倍率；旧存档中受损的装备仍可修复。禁用充能后不再提供修复动作；同时开启装备保留时，耗尽的装备会留下，但无法用本模组修复。
+充能比例按各自配置后的最大耐久计算，例如暗夜剑 200 次耐久、20% 充能时，每份恢复 40 次；暗夜甲原版 525 点耐久、25% 充能时，每份恢复 131.25 点。无限耐久下，暗夜剑使用原版“不消耗战斗耐久”设置，暗夜甲使用自身的零损耗倍率；旧存档中受损的装备仍可修复。
 
 ## 实现与存档
 
@@ -57,20 +60,21 @@
 
 可额外传入 `-InsightScripts 'D:\Programs\Steam\steamapps\workshop\content\322330\2189004162'`，测试会读取本机 Insight 的真实修复描述器，验证提示与实际修复量一致；不传入时仍验证适配逻辑，无需安装 Insight。
 
-覆盖两种装备的各档充能比例与耐久倍率、满耐久拒绝、错误材料、堆叠消耗、耗尽与恢复、旧存档加载、无限耐久、禁用选项、播报语言、Insight 修复提示、其他装备隔离、客户端初始化和音效分支。引擎实体与网络使用替身，实际联机交互仍需进游戏验收：
+覆盖两种装备的六档充能比例与耐久倍率、独立配置、旧配置回退、100% 封顶、满耐久拒绝、错误材料、堆叠消耗、耗尽与恢复、旧存档加载、无限耐久、保留选项、播报语言、Insight 修复提示、其他装备隔离、客户端初始化和音效分支。引擎实体与网络使用替身，实际联机交互仍需进游戏验收：
 
 - 房主和远程客户端分别修复背包、装备栏、地面及容器中的暗夜剑和暗夜甲，检查动作、动画、耐久显示与音效。
 - 连续修复至满耐久，确认每次只少一份燃料，满耐久无法继续消耗。
 - 将两种装备用至耗尽，保存重进后修复，确认剑的伤害及甲的吸收率与理智属性恢复。
-- 分别检查关闭保留、关闭充能及无限耐久配置，并确认原版橙色护符不受影响。
+- 分别检查关闭保留、剑和甲的独立充能比例及无限耐久配置，并确认原版橙色护符不受影响。
 - 检查“不播报”、中文、English 选项，并在 Insight 下确认两种装备的修复提示随配置和剩余耐久变化。
 
 ## English
 
-Night Sword and Night Armor can also be repaired with Nightmare Fuel using the same native repair interaction as the Lazy Forager. Each fuel restores a configurable percentage of either item's maximum durability (20% by default). A fully repaired Night Sword or Night Armor does not consume fuel. Optional retention keeps exhausted equipment inert until it is repaired. Durability multipliers and infinite combat durability remain configurable. Character announcements are disabled by default; Chinese and English remain selectable, and repair sounds still play. With Insight, repair tooltips reflect the current refill settings and remaining durability. All clients require the mod.
+Night Sword and Night Armor can also be repaired with Nightmare Fuel using the same native repair interaction as the Lazy Forager. Each fuel restores an independently configurable percentage of each item's maximum durability: 10%, 20%, 25%, 33.3%, 50%, or 100% (both default to 20%). The 33.3% rate uses 0.333; 100% fully repairs the item with one fuel. Legacy refill settings apply to Night Sword; removed 30% and disabled settings fall back to 20%, and Night Armor defaults to 20%. A fully repaired Night Sword or Night Armor does not consume fuel. Optional retention keeps exhausted equipment inert until it is repaired. Durability multipliers and infinite combat durability remain configurable. Character announcements are disabled by default; Chinese and English remain selectable, and repair sounds still play. With Insight, repair tooltips reflect each item's refill setting and remaining durability. All clients require the mod.
 
 ## 版本历史
 
+- **1.4.1**：剑和甲的充能比例独立设置，均提供 10%、20%、25%、33.3%、50%、100% 六档，默认 20%；Insight 提示跟随各自配置；移除 30% 和禁用充能档位。
 - **1.4.0**：新增默认的“不播报”选项；保留中文和 English 播报，修复音效照常播放；修正 Insight 修复提示，使其反映当前配置和实际可恢复量。
 - **1.3.0**：新增暗夜甲充能，沿用原版护甲耐久、修复动作及共享配置；耗尽保留时暂时禁用护甲效果。
 - **1.2.0**：改用原版橙色护符修复流程；移除全局组件补丁；修正属性恢复、低耐久及零耐久读档处理；加入原版组件回归测试。

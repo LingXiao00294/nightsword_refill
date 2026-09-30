@@ -220,8 +220,8 @@ Test("default silence and existing language choices work through mod entry", fun
 end)
 
 Test("Insight integration is optional and registers after mods initialize", function()
-    Equal(RegisterInsight(nil, "test", { refill_rate = .2 }), false)
-    Equal(RegisterInsight({ API = {} }, "test", { refill_rate = .2 }), false)
+    Equal(RegisterInsight(nil, "test", { refill_rate = .2, armor_refill_rate = .2 }), false)
+    Equal(RegisterInsight({ API = {} }, "test", { refill_rate = .2, armor_refill_rate = .2 }), false)
     local register_calls = 0
     local insight = { API = { AddDescriptorPostDescribe = function(name, descriptor, callback)
         Equal(name, "test")
@@ -229,7 +229,7 @@ Test("Insight integration is optional and registers after mods initialize", func
         Equal(type(callback), "function")
         register_calls = register_calls + 1
     end } }
-    Equal(RegisterInsight(insight, "test", { refill_rate = 0 }), false)
+    Equal(RegisterInsight(insight, "test", { refill_rate = 0, armor_refill_rate = 0 }), false)
     local initialize
     local globals = {}
     local env = setmetatable({
@@ -248,7 +248,7 @@ end)
 local function InsightCallback(rate)
     local callback
     RegisterInsight({ API = { AddDescriptorPostDescribe = function(_, _, fn) callback = fn end } },
-        "test", { refill_rate = rate })
+        "test", { refill_rate = rate, armor_refill_rate = rate })
     return callback
 end
 
@@ -266,9 +266,83 @@ local function InsightDescription(inst, fuel, callback)
     return descriptions[1]
 end
 
+Test("equipment refill menus contain exactly six rates and default to twenty percent", function()
+    local info = {}
+    setfenv(assert(loadfile("modinfo.lua")), info)()
+    local found = 0
+    for _, option in ipairs(info.configuration_options) do
+        if option.name == "refill_rate" or option.name == "armor_refill_rate" then
+            found = found + 1
+            Equal(option.default, .2)
+            Equal(#option.options, 6)
+            for i, rate in ipairs({ .1, .2, .25, .333, .5, 1 }) do
+                Equal(option.options[i].data, rate)
+                Equal(option.options[i].description, string.format("%g%%", rate * 100))
+            end
+        end
+    end
+    Equal(found, 2)
+end)
+
+local function RefillEntry(config)
+    local hooks, initialize, callback
+    hooks = {}
+    local env = setmetatable({
+        GetModConfigData = function(name) return config[name] end,
+        AddPrefabPostInit = function(name, fn) hooks[name] = fn end,
+        AddSimPostInit = function(fn) initialize = fn end,
+        modname = "test",
+        GLOBAL = { Insight = { API = { AddDescriptorPostDescribe = function(_, _, fn) callback = fn end } } },
+    }, { __index = _G })
+    setfenv(assert(loadfile("modmain.lua")), env)()
+    initialize()
+    return hooks, callback
+end
+
+Test("independent rates drive native repairs speech and Insight through mod entry", function()
+    for _, sword_rate in ipairs({ .1, .2, .25, .333, .5, 1 }) do
+        for _, armor_rate in ipairs({ .1, .2, .25, .333, .5, 1 }) do
+            local hooks, callback = RefillEntry({ refill_rate = sword_rate, armor_refill_rate = armor_rate, lang = true })
+            local sword, armor = Sword(nil, hooks.nightsword), NightArmor(nil, hooks.armor_sanity)
+            local owner, message = Entity()
+            owner.components.talker = { Say = function(_, text) message = text end }
+            for _, item in ipairs({ { inst = sword, rate = sword_rate, name = "Night Sword" },
+                { inst = armor, rate = armor_rate, name = "Night Armor" } }) do
+                local durability = item.inst.components.finiteuses or item.inst.components.armor
+                durability:SetPercent(0)
+                local maximum = durability.total or durability.maxcondition
+                Equal(InsightDescription(item.inst, Fuel(), callback).description,
+                    string.format("nightmarefuel restores %g (%g%%)", maximum * item.rate, item.rate * 100))
+                Equal(Repair(item.inst, Fuel(), owner), true)
+                Near(durability:GetPercent(), item.rate)
+                Equal(message, item.rate == 1 and item.name.." fully repaired."
+                    or string.format("%s durability restored: %g%%.", item.name, item.rate * 100))
+            end
+        end
+    end
+end)
+
+Test("missing and removed legacy rates use defaults independently", function()
+    for _, config in ipairs({ {}, { refill_rate = .3, armor_refill_rate = 0 },
+        { refill_rate = 0, armor_refill_rate = .3 }, { refill_rate = .5 },
+        { refill_rate = .3, armor_refill_rate = .25 } }) do
+        local hooks, callback = RefillEntry(config)
+        local rates = { config.refill_rate == .5 and .5 or .2, config.armor_refill_rate == .25 and .25 or .2 }
+        for i, inst in ipairs({ Sword(nil, hooks.nightsword), NightArmor(nil, hooks.armor_sanity) }) do
+            local durability = inst.components.finiteuses or inst.components.armor
+            durability:SetPercent(0)
+            local maximum = durability.total or durability.maxcondition
+            Equal(InsightDescription(inst, Fuel(), callback).description,
+                string.format("nightmarefuel restores %g (%g%%)", maximum * rates[i], rates[i] * 100))
+            Equal(Repair(inst, Fuel()), true)
+            Near(durability:GetPercent(), rates[i])
+        end
+    end
+end)
+
 Test("Insight hints match actual repairs for both equipment types and all configurations", function()
     for _, factory in ipairs({ Sword, NightArmor }) do
-        for _, rate in ipairs({ .1, .2, .3, .5 }) do
+        for _, rate in ipairs({ .1, .2, .25, .333, .5, 1 }) do
             local callback = InsightCallback(rate)
             for _, multiplier in ipairs({ 1, 2, 5, 999 }) do
                 for _, percent in ipairs({ 0, .1, .95 }) do
@@ -332,13 +406,13 @@ Test("native action availability, single stack consumption and full rejection", 
 end)
 
 Test("all refill rates and finite durability multipliers", function()
-    for _, rate in ipairs({ .1, .2, .3, .5 }) do
+    for _, rate in ipairs({ .1, .2, .25, .333, .5, 1 }) do
         for _, multiplier in ipairs({ 1, 2, 5 }) do
             local inst = Sword({ refill_rate = rate, maximum_use = multiplier })
             Equal(inst.components.finiteuses.total, 100 * multiplier)
             inst.components.finiteuses:SetPercent(.1)
             Equal(Repair(inst, Fuel()), true)
-            Near(inst.components.finiteuses:GetPercent(), .1 + rate)
+            Near(inst.components.finiteuses:GetPercent(), math.min(1, .1 + rate))
         end
     end
 end)
@@ -500,14 +574,14 @@ Test("night armor uses native repair action and one fuel per repair", function()
 end)
 
 Test("night armor refill rates and durability multipliers", function()
-    for _, rate in ipairs({ .1, .2, .3, .5 }) do
+    for _, rate in ipairs({ .1, .2, .25, .333, .5, 1 }) do
         for _, multiplier in ipairs({ 1, 2, 5 }) do
             local inst = NightArmor({ refill_rate = rate, maximum_use = multiplier })
             local armor = inst.components.armor
             Equal(armor.maxcondition, 525 * multiplier)
             armor:SetPercent(.1)
             Equal(Repair(inst, Fuel()), true)
-            Near(armor:GetPercent(), .1 + rate)
+            Near(armor:GetPercent(), math.min(1, .1 + rate))
         end
     end
 end)

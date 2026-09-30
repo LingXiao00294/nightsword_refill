@@ -5,11 +5,13 @@ description =
   暗夜剑和暗夜甲可以使用噩梦燃料修复。
 - Each nightmare fuel restores 20% of Night Sword or Night Armor durability by default.
   默认每份噩梦燃料恢复暗夜剑或暗夜甲20%的耐久度。
+- Configure Night Sword and Night Armor refill rates separately: 10%, 20%, 25%, 33.3%, 50%, or 100%.
+  暗夜剑和暗夜甲可分别设置恢复比例：10%、20%、25%、33.3%、50%或100%。
 - Night Sword and Night Armor can be retained when durability is exhausted.
   暗夜剑和暗夜甲在耐久度耗尽时可以被保留。
 ]]
-author = "ModCreator"
-version = "1.4.0"
+author = "Lingxiao00294"
+version = "1.4.1"
 
 forumthread = ""
 api_version = 10
@@ -37,18 +39,34 @@ configuration_options =
     },
 	{
 		name = "refill_rate",
-        label = "Refill Rate/充能值",
-		hover = "Durability restored to Night Sword or Night Armor by each nightmare fuel".."\n每份噩梦燃料为暗夜剑或暗夜甲恢复的耐久度百分比",
+        label = "Night Sword Refill Rate/暗夜剑充能值",
+		hover = "Night Sword durability restored by each nightmare fuel".."\n每份噩梦燃料为暗夜剑恢复的耐久度百分比",
         options =
         {
-			{description = "No Refill/不充能", 		data = 0,		hover = "Night Sword and Night Armor cannot be refilled/暗夜剑和暗夜甲不可充能"},
             {description = "10%", 					data = 0.10,	hover = "Increase by 10%/增加10%"},
             {description = "20%", 					data = 0.20,	hover = "Increase by 20%/增加20%"},
-            {description = "30%", 					data = 0.30,	hover = "Increase by 30%/增加30%"},
+            {description = "25%", data = 0.25, hover = "Increase by 25%/增加25%"},
+            {description = "33.3%", data = 0.333, hover = "Increase by 33.3%/增加33.3%"},
             {description = "50%", 					data = 0.50,	hover = "Increase by 50%/增加50%"},
+            {description = "100%", data = 1, hover = "Fully repair/完全修复"},
         },
         default = 0.20,
 	},
+    {
+        name = "armor_refill_rate",
+        label = "Night Armor Refill Rate/暗夜甲充能值",
+        hover = "Night Armor durability restored by each nightmare fuel".."\n每份噩梦燃料为暗夜甲恢复的耐久度百分比",
+        options =
+        {
+            {description = "10%", data = 0.10, hover = "Increase by 10%/增加10%"},
+            {description = "20%", data = 0.20, hover = "Increase by 20%/增加20%"},
+            {description = "25%", data = 0.25, hover = "Increase by 25%/增加25%"},
+            {description = "33.3%", data = 0.333, hover = "Increase by 33.3%/增加33.3%"},
+            {description = "50%", data = 0.50, hover = "Increase by 50%/增加50%"},
+            {description = "100%", data = 1, hover = "Fully repair/完全修复"},
+        },
+        default = 0.20,
+    },
     {
         name = "wont_break",
         label = "Equipment Retention/装备保留",
