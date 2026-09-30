@@ -10,6 +10,8 @@ TheWorld = { ismastersim = true }
 local dedicated = true
 TheNet = { IsDedicated = function() return dedicated end }
 ThePlayer = {}
+EntityScript = { is_instance = function() return false end }
+ProfileStatsSet = function() end
 local client_sounds = 0
 TheFocalPoint = { SoundEmitter = { PlaySound = function() client_sounds = client_sounds + 1 end } }
 net_event = function()
@@ -32,6 +34,7 @@ local NativeAttack = ExtractFunction("components/weapon.lua",
     "function(self, attacker, target, projectile)")
 local FiniteUses = require("components/finiteuses")
 local Configure = require("nightsword_refill")
+local ConfigureArmor = require("nightarmor_refill")
 local function Equal(actual, expected)
     assert(actual == expected, tostring(actual).." ~= "..tostring(expected))
 end
@@ -87,6 +90,20 @@ local function Sword(overrides)
     return inst
 end
 
+local function NightArmor(overrides)
+    local inst = Entity()
+    inst.prefab = "armor_sanity"
+    inst:AddComponent("armor")
+    inst.components.armor:InitCondition(525, .95)
+    inst.components.equippable = { dapperness = -3, IsEquipped = function(self) return self.equipped end }
+    inst.components.shadowlevel = { level = 2, SetDefaultLevel = function(self, value) self.level = value end }
+    inst.components.inventoryitem = {}
+    local options = { refill_rate = .2, maximum_use = 1, wont_break = true, english = false }
+    for key, value in pairs(overrides or {}) do options[key] = value end
+    ConfigureArmor(inst, options)
+    return inst
+end
+
 local function Fuel(count, prefab, material)
     local item = Entity()
     item.prefab = prefab or "nightmarefuel"
@@ -118,14 +135,17 @@ local function Test(name, fn)
     print("PASS "..name)
 end
 
-Test("mod entry registers only the nightsword prefab", function()
+Test("mod entry registers only night sword and night armor prefabs", function()
     local hooks = {}
     local env = setmetatable({ GetModConfigData = function() end,
         AddPrefabPostInit = function(name, fn) hooks[name] = fn end }, { __index = _G })
     local main = assert(loadfile("modmain.lua"))
     setfenv(main, env)()
     Equal(type(hooks.nightsword), "function")
-    Equal(next(hooks, "nightsword"), nil)
+    Equal(type(hooks.armor_sanity), "function")
+    local count = 0
+    for _ in pairs(hooks) do count = count + 1 end
+    Equal(count, 2)
     assert(loadfile("modinfo.lua"))
 end)
 
@@ -292,6 +312,147 @@ Test("client initializes action prediction and delayed sound listener only", fun
     Equal(client_sounds, before)
     inst.parent = { replica = { container = { IsOpenedBy = function() return true end } } }
     inst:PushEvent("nightsword_refill.playfuelsound")
+    Equal(client_sounds, before + 1)
+    TheWorld.ismastersim = true
+end)
+
+Test("night armor uses native repair action and one fuel per repair", function()
+    local inst, fuel = NightArmor(), Fuel(5)
+    local armor = inst.components.armor
+    Equal(HasRepairAction(inst, fuel), false)
+    Equal(Repair(inst, fuel), false)
+    Equal(fuel.count, 5)
+    armor:SetPercent(.85)
+    Equal(HasRepairAction(inst, fuel), true)
+    Equal(Repair(inst, fuel), true)
+    Near(armor:GetPercent(), 1)
+    Equal(fuel.count, 4)
+    Equal(fuel.consumed, 1)
+    Equal(HasRepairAction(inst, fuel), false)
+    Equal(Repair(inst, fuel), false)
+    Equal(inst.sounds, 1)
+    Equal(inst.components.finiteuses, nil)
+end)
+
+Test("night armor refill rates and durability multipliers", function()
+    for _, rate in ipairs({ .1, .2, .3, .5 }) do
+        for _, multiplier in ipairs({ 1, 2, 5 }) do
+            local inst = NightArmor({ refill_rate = rate, maximum_use = multiplier })
+            local armor = inst.components.armor
+            Equal(armor.maxcondition, 525 * multiplier)
+            armor:SetPercent(.1)
+            Equal(Repair(inst, Fuel()), true)
+            Near(armor:GetPercent(), .1 + rate)
+        end
+    end
+end)
+
+Test("night armor rejects wrong material and wrong prefab", function()
+    local inst = NightArmor()
+    inst.components.armor:SetPercent(.5)
+    for _, fuel in ipairs({ Fuel(2, "twigs", MATERIALS.WOOD), Fuel(2, "modded_fuel") }) do
+        Equal(Repair(inst, fuel), false)
+        Equal(fuel.count, 2)
+    end
+    local fuel = Fuel()
+    fuel.components.stackable = nil
+    Equal(Repair(inst, fuel), true)
+    Equal(fuel.removed, true)
+end)
+
+Test("exhausted night armor is inert and repair restores original attributes", function()
+    local inst = NightArmor()
+    local armor = inst.components.armor
+    for _ = 1, 2 do
+        armor:TakeDamage(1000)
+        Equal(inst.removed, nil)
+        Equal(armor.condition, 0)
+        Equal(armor:GetAbsorption(), 0)
+        Equal(inst.components.equippable.dapperness, 0)
+        Equal(inst.components.shadowlevel.level, 0)
+        Equal(HasRepairAction(inst, Fuel()), true)
+        Equal(Repair(inst, Fuel()), true)
+        Near(armor:GetPercent(), .2)
+        Equal(armor:GetAbsorption(), .95)
+        Equal(inst.components.equippable.dapperness, -3)
+        Equal(inst.components.shadowlevel.level, 2)
+    end
+end)
+
+Test("night armor retention and refill can be disabled", function()
+    local disposable = NightArmor({ wont_break = false })
+    disposable.components.armor:TakeDamage(1000)
+    Equal(disposable.removed, true)
+    local no_refill = NightArmor({ refill_rate = 0 })
+    no_refill.components.armor:SetPercent(.5)
+    Equal(no_refill.components.repairable, nil)
+    Equal(no_refill._refill_sound, nil)
+    Equal(HasRepairAction(no_refill, Fuel()), false)
+end)
+
+Test("infinite night armor uses native condition loss multiplier", function()
+    local inst = NightArmor({ maximum_use = 999 })
+    local armor = inst.components.armor
+    armor:TakeDamage(200)
+    Equal(armor.condition, 525)
+    armor:SetPercent(.5)
+    Equal(Repair(inst, Fuel()), true)
+    Near(armor:GetPercent(), .7)
+end)
+
+Test("existing night armor saves including zero survive load and refill", function()
+    for _, condition in ipairs({ 0, 123, 525 }) do
+        local inst = NightArmor()
+        inst.components.armor:OnLoad({ condition = condition })
+        inst:RunTasks()
+        Equal(inst.components.armor.condition, condition)
+        local data = inst.components.armor:OnSave()
+        local reloaded = NightArmor()
+        if data then reloaded.components.armor:OnLoad(data) end
+        reloaded:RunTasks()
+        Equal(reloaded.components.armor.condition, condition)
+        if condition < 525 then
+            Equal(Repair(reloaded, Fuel()), true)
+            Equal(reloaded.components.armor:GetAbsorption(), .95)
+        end
+    end
+end)
+
+Test("night armor equipped and inventory sounds plus English speech", function()
+    local inst = NightArmor({ english = true })
+    local owner = Entity()
+    owner.entity:AddSoundEmitter()
+    local speech
+    owner.components.talker = { Say = function(_, message) speech = message end }
+    owner.replica.inventory = { IsOpenedBy = function(_, player) return player == ThePlayer end }
+    inst.components.inventoryitem.owner = owner
+    inst.components.equippable.equipped = true
+    inst.components.armor:SetPercent(.5)
+    Equal(Repair(inst, Fuel(), owner), true)
+    Equal(speech, "Night Armor durability restored: 20%.")
+    Equal(owner.sounds, 1)
+    inst.components.equippable.equipped = false
+    Equal(Repair(inst, Fuel(), owner), true)
+    Equal(inst._refill_sound.count, 1)
+    dedicated = false
+    inst.parent = owner
+    local before = client_sounds
+    Equal(Repair(inst, Fuel(), owner), true)
+    Equal(client_sounds, before + 1)
+    Equal(speech, "Night Armor fully repaired.")
+    dedicated = true
+end)
+
+Test("night armor client initializes only action and sound networking", function()
+    TheWorld.ismastersim = false
+    local inst = Entity()
+    ConfigureArmor(inst, { refill_rate = .2 })
+    Equal(next(inst.components), nil)
+    Equal(inst:HasTag("repairshortaction"), true)
+    inst:RunTasks()
+    local before = client_sounds
+    inst.parent = { replica = { container = { IsOpenedBy = function() return true end } } }
+    inst:PushEvent("nightarmor_refill.playfuelsound")
     Equal(client_sounds, before + 1)
     TheWorld.ismastersim = true
 end)
