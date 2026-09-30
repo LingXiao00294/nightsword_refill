@@ -9,7 +9,7 @@ description =
   暗夜剑和暗夜甲在耐久度耗尽时可以被保留。
 ]]
 author = "ModCreator"
-version = "1.3.0"
+version = "1.4.0"
 
 forumthread = ""
 api_version = 10
@@ -26,13 +26,14 @@ configuration_options =
     {
         name = "lang",
         label = "Language/语言",
-		hover = "The language you prefer for character speech".."\n你希望角色使用的语言",
+		hover = "Choose the announcement language or disable character speech".."\n选择播报语言或关闭角色台词",
         options =
         {
+            {description = "No Announcements/不播报", data = "none", hover = "Disable repair and durability announcements/关闭修复和耐久耗尽播报"},
             {description = "English", 	data = true, 	hover = "The character will declare the refill in English"},
             {description = "中文", 		data = false, 	hover = "角色将使用中文对充能进行宣告"},
         },
-        default = false,
+        default = "none",
     },
 	{
 		name = "refill_rate",

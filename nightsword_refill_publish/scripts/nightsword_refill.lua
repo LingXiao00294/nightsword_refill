@@ -24,9 +24,9 @@ local function PlayFuelSound(inst)
     end
 end
 
-local function Say(doer, english, en, zh)
-    if doer ~= nil and doer.components.talker ~= nil then
-        doer.components.talker:Say(english and en or zh)
+local function Say(doer, language, en, zh)
+    if type(language) == "boolean" and doer ~= nil and doer.components.talker ~= nil then
+        doer.components.talker:Say(language and en or zh)
     end
 end
 
@@ -64,7 +64,7 @@ local function ConfigureRetention(inst, options)
         UpdateDurability()
         local owner = inst.components.inventoryitem.owner
         if owner ~= nil and inst.components.equippable:IsEquipped() then
-            Say(owner, options.english, "Night Sword durability exhausted.", "暗夜剑耐久度耗尽。")
+            Say(owner, options.language, "Night Sword durability exhausted.", "暗夜剑耐久度耗尽。")
             if not owner:HasTag("busy") then
                 owner:PushEvent("toolbroke", { tool = inst })
             end
@@ -110,10 +110,10 @@ local function ConfigureRepair(inst, options)
     repairable.onrepaired = function(item, doer)
         PlayFuelSound(item)
         if finiteuses:GetPercent() >= 1 then
-            Say(doer, options.english, "Night Sword fully repaired.", "暗夜剑完全修复。")
+            Say(doer, options.language, "Night Sword fully repaired.", "暗夜剑完全修复。")
         else
             local percent = string.format("%g", options.refill_rate * 100)
-            Say(doer, options.english,
+            Say(doer, options.language,
                 "Night Sword durability restored: "..percent.."%.",
                 "暗夜剑耐久度恢复："..percent.."%。")
         end

@@ -35,6 +35,15 @@ local NativeAttack = ExtractFunction("components/weapon.lua",
 local FiniteUses = require("components/finiteuses")
 local Configure = require("nightsword_refill")
 local ConfigureArmor = require("nightarmor_refill")
+local RegisterInsight = require("refill_insight")
+local NativeInsightDescribe
+if arg[2] ~= nil then
+    Round = function(value, places)
+        local scale = 10 ^ places
+        return math.floor(value * scale + .5) / scale
+    end
+    NativeInsightDescribe = assert(loadfile(arg[2].."/scripts/descriptors/repairable.lua"))().Describe
+end
 local function Equal(actual, expected)
     assert(actual == expected, tostring(actual).." ~= "..tostring(expected))
 end
@@ -74,8 +83,9 @@ local function Entity()
     return inst
 end
 
-local function Sword(overrides)
+local function Sword(overrides, configure)
     local inst = Entity()
+    inst.prefab = "nightsword"
     inst:AddComponent("finiteuses")
     inst.components.finiteuses:SetOnFinished(inst.Remove)
     inst.components.weapon = { inst = inst, damage = 91, SetDamage = function(self, value) self.damage = value end,
@@ -84,13 +94,13 @@ local function Sword(overrides)
     inst.components.inventoryitem = {}
     inst.components.hauntable = { onhaunt = function() return "launched" end,
         SetOnHauntFn = function(self, fn) self.onhaunt = fn end }
-    local options = { refill_rate = .2, maximum_use = 1, wont_break = true, english = false }
+    local options = { refill_rate = .2, maximum_use = 1, wont_break = true, language = "none" }
     for key, value in pairs(overrides or {}) do options[key] = value end
-    Configure(inst, options)
+    (configure or Configure)(inst, options)
     return inst
 end
 
-local function NightArmor(overrides)
+local function NightArmor(overrides, configure)
     local inst = Entity()
     inst.prefab = "armor_sanity"
     inst:AddComponent("armor")
@@ -98,9 +108,9 @@ local function NightArmor(overrides)
     inst.components.equippable = { dapperness = -3, IsEquipped = function(self) return self.equipped end }
     inst.components.shadowlevel = { level = 2, SetDefaultLevel = function(self, value) self.level = value end }
     inst.components.inventoryitem = {}
-    local options = { refill_rate = .2, maximum_use = 1, wont_break = true, english = false }
+    local options = { refill_rate = .2, maximum_use = 1, wont_break = true, language = "none" }
     for key, value in pairs(overrides or {}) do options[key] = value end
-    ConfigureArmor(inst, options)
+    (configure or ConfigureArmor)(inst, options)
     return inst
 end
 
@@ -137,7 +147,7 @@ end
 
 Test("mod entry registers only night sword and night armor prefabs", function()
     local hooks = {}
-    local env = setmetatable({ GetModConfigData = function() end,
+    local env = setmetatable({ GetModConfigData = function() end, AddSimPostInit = function() end,
         AddPrefabPostInit = function(name, fn) hooks[name] = fn end }, { __index = _G })
     local main = assert(loadfile("modmain.lua"))
     setfenv(main, env)()
@@ -147,6 +157,161 @@ Test("mod entry registers only night sword and night armor prefabs", function()
     for _ in pairs(hooks) do count = count + 1 end
     Equal(count, 2)
     assert(loadfile("modinfo.lua"))
+end)
+
+Test("default silence and existing language choices work through mod entry", function()
+    local info = {}
+    setfenv(assert(loadfile("modinfo.lua")), info)()
+    local language
+    for _, option in ipairs(info.configuration_options) do
+        if option.name == "lang" then language = option end
+    end
+    Equal(language.default, "none")
+    local default_is_selectable = false
+    for _, option in ipairs(language.options) do
+        if option.data == language.default then default_is_selectable = true end
+    end
+    Equal(default_is_selectable, true)
+
+    for _, choice in ipairs({ { value = language.default }, { value = false }, { value = true }, {} }) do
+        local hooks = {}
+        local env = setmetatable({
+            AddSimPostInit = function() end,
+            GetModConfigData = function(name)
+                if name == "lang" then return choice.value end
+            end,
+            AddPrefabPostInit = function(name, fn) hooks[name] = fn end,
+        }, { __index = _G })
+        setfenv(assert(loadfile("modmain.lua")), env)()
+        local sword = Sword(nil, hooks.nightsword)
+        local armor = NightArmor(nil, hooks.armor_sanity)
+        local owner, messages = Entity(), {}
+        owner.entity:AddSoundEmitter()
+        owner.components.talker = { Say = function(_, message) table.insert(messages, message) end }
+        for _, inst in ipairs({ sword, armor }) do
+            inst.components.inventoryitem.owner = owner
+            inst.components.equippable.equipped = true
+        end
+
+        sword.components.finiteuses:SetUses(0)
+        Equal(Repair(sword, Fuel(), owner), true)
+        sword.components.finiteuses:SetUses(90)
+        Equal(Repair(sword, Fuel(), owner), true)
+        armor.components.armor:SetPercent(.5)
+        Equal(Repair(armor, Fuel(), owner), true)
+        armor.components.armor:SetPercent(.9)
+        Equal(Repair(armor, Fuel(), owner), true)
+        Equal(owner.sounds, 4)
+        if type(choice.value) == "boolean" then
+            local expected = choice.value and {
+                "Night Sword durability exhausted.", "Night Sword durability restored: 20%.",
+                "Night Sword fully repaired.", "Night Armor durability restored: 20%.",
+                "Night Armor fully repaired.",
+            } or {
+                "暗夜剑耐久度耗尽。", "暗夜剑耐久度恢复：20%。", "暗夜剑完全修复。",
+                "暗夜甲耐久度恢复：20%。", "暗夜甲完全修复。",
+            }
+            Equal(#messages, #expected)
+            for i, message in ipairs(expected) do Equal(messages[i], message) end
+        else
+            Equal(#messages, 0)
+        end
+    end
+end)
+
+Test("Insight integration is optional and registers after mods initialize", function()
+    Equal(RegisterInsight(nil, "test", { refill_rate = .2 }), false)
+    Equal(RegisterInsight({ API = {} }, "test", { refill_rate = .2 }), false)
+    local register_calls = 0
+    local insight = { API = { AddDescriptorPostDescribe = function(name, descriptor, callback)
+        Equal(name, "test")
+        Equal(descriptor, "repairable")
+        Equal(type(callback), "function")
+        register_calls = register_calls + 1
+    end } }
+    Equal(RegisterInsight(insight, "test", { refill_rate = 0 }), false)
+    local initialize
+    local globals = {}
+    local env = setmetatable({
+        GLOBAL = globals, modname = "test", GetModConfigData = function() end,
+        AddPrefabPostInit = function() end,
+        AddSimPostInit = function(fn) initialize = fn end,
+    }, { __index = _G })
+    setfenv(assert(loadfile("modmain.lua")), env)()
+    initialize()
+    Equal(register_calls, 0)
+    globals.Insight = insight
+    initialize()
+    Equal(register_calls, 1)
+end)
+
+local function InsightCallback(rate)
+    local callback
+    RegisterInsight({ API = { AddDescriptorPostDescribe = function(_, _, fn) callback = fn end } },
+        "test", { refill_rate = rate })
+    return callback
+end
+
+local function InsightDescription(inst, fuel, callback)
+    local context = {
+        player = { components = { inventory = { GetActiveItem = function() return fuel end } } },
+        config = { repair_values = 0 },
+        lstr = { repairer = { held_repair = "%s restores %s (%s%%)" } },
+    }
+    local descriptions = {}
+    if NativeInsightDescribe ~= nil then
+        descriptions[1] = NativeInsightDescribe(inst.components.repairable, context)
+    end
+    callback(inst.components.repairable, context, descriptions)
+    return descriptions[1]
+end
+
+Test("Insight hints match actual repairs for both equipment types and all configurations", function()
+    for _, factory in ipairs({ Sword, NightArmor }) do
+        for _, rate in ipairs({ .1, .2, .3, .5 }) do
+            local callback = InsightCallback(rate)
+            for _, multiplier in ipairs({ 1, 2, 5, 999 }) do
+                for _, percent in ipairs({ 0, .1, .95 }) do
+                    local inst = factory({ refill_rate = rate, maximum_use = multiplier })
+                    local durability = inst.components.finiteuses or inst.components.armor
+                    durability:SetPercent(percent)
+                    local maximum = durability.total or durability.maxcondition
+                    local before = durability:GetPercent() * maximum
+                    local amount = math.min(maximum * rate, maximum - before)
+                    local fuel = Fuel(2)
+                    local description = InsightDescription(inst, fuel, callback)
+                    Equal(description.description, string.format("nightmarefuel restores %g (%g%%)",
+                        amount, amount / maximum * 100))
+                    Equal(fuel.count, 2)
+                    Equal(fuel.components.repairer.finiteusesrepairvalue, 25)
+                    Equal(Repair(inst, fuel), true)
+                    Near(durability:GetPercent() * maximum - before, amount)
+                    Equal(fuel.count, 1)
+                end
+            end
+        end
+    end
+end)
+
+Test("Insight hints reject full equipment and invalid fuel and leave other equipment alone", function()
+    local callback = InsightCallback(.2)
+    for _, factory in ipairs({ Sword, NightArmor }) do
+        local inst = factory()
+        Equal(InsightDescription(inst, Fuel(), callback), nil)
+        local durability = inst.components.finiteuses or inst.components.armor
+        durability:SetPercent(.5)
+        Equal(InsightDescription(inst, nil, callback), nil)
+        Equal(InsightDescription(inst, Fuel(2, "twigs", MATERIALS.WOOD), callback), nil)
+        Equal(InsightDescription(inst, Fuel(2, "modded_fuel"), callback), nil)
+        inst.components.repairable.checkmaterialfn = function() return false end
+        Equal(InsightDescription(inst, Fuel(), callback), nil)
+    end
+    local inst = Sword()
+    inst.prefab = "orangeamulet"
+    local original = { description = "unmodified" }
+    local descriptions = { original }
+    callback(inst.components.repairable, {}, descriptions)
+    Equal(descriptions[1], original)
 end)
 
 Test("native action availability, single stack consumption and full rejection", function()
@@ -275,7 +440,7 @@ Test("other finiteuses items and fuel repair values stay vanilla", function()
 end)
 
 Test("equipped and inventory sound paths plus English speech", function()
-    local inst = Sword({ english = true })
+    local inst = Sword({ language = true })
     local owner = Entity()
     owner.entity:AddSoundEmitter()
     local speech
@@ -419,7 +584,7 @@ Test("existing night armor saves including zero survive load and refill", functi
 end)
 
 Test("night armor equipped and inventory sounds plus English speech", function()
-    local inst = NightArmor({ english = true })
+    local inst = NightArmor({ language = true })
     local owner = Entity()
     owner.entity:AddSoundEmitter()
     local speech

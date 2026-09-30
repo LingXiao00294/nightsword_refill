@@ -23,9 +23,9 @@ local function PlayFuelSound(inst)
     end
 end
 
-local function Say(doer, english, en, zh)
-    if doer ~= nil and doer.components.talker ~= nil then
-        doer.components.talker:Say(english and en or zh)
+local function Say(doer, language, en, zh)
+    if type(language) == "boolean" and doer ~= nil and doer.components.talker ~= nil then
+        doer.components.talker:Say(language and en or zh)
     end
 end
 
@@ -93,10 +93,10 @@ local function ConfigureRepair(inst, armor, options)
         armor:Repair(armor.maxcondition * options.refill_rate)
         PlayFuelSound(item)
         if not armor:IsDamaged() then
-            Say(doer, options.english, "Night Armor fully repaired.", "暗夜甲完全修复。")
+            Say(doer, options.language, "Night Armor fully repaired.", "暗夜甲完全修复。")
         else
             local percent = string.format("%g", options.refill_rate * 100)
-            Say(doer, options.english,
+            Say(doer, options.language,
                 "Night Armor durability restored: "..percent.."%.",
                 "暗夜甲耐久度恢复："..percent.."%。")
         end
